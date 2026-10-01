@@ -14,7 +14,7 @@
   },
   "exports": {
     "./server": "./src/temperature.ts",
-    "./tui": "./src/temperature-command.tsx"
+    "./tui": "./src/temperature-command.ts"
   },
   "files": [
     "src",
