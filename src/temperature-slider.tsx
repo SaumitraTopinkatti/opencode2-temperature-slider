@@ -323,7 +323,7 @@ const plugin: TuiPluginModule & { id: string } = {
 
     api.slots.register(createSpringSlot(api))
 
-    api.command.register((): TuiCommand[] => {
+    api.command?.register((): TuiCommand[] => {
       return [
         {
           title: "Temperature: Reset to model default",
