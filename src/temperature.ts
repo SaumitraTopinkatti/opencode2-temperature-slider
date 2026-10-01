@@ -1,24 +1,38 @@
 import { existsSync, readFileSync } from "node:fs"
+import { homedir } from "node:os"
 import { join } from "node:path"
 import type { Plugin, PluginModule } from "@opencode-ai/plugin"
 
-export function stateFile(directory: string): string {
+function clampTemperature(value: number): number | undefined {
+  if (!Number.isFinite(value)) return undefined
+  return Math.min(2, Math.max(0, value))
+}
+
+export function projectStateFile(directory: string): string {
   return join(directory, ".opencode", "temperature.json")
 }
 
-export function readTemperature(directory: string, modelKey: string): number | undefined {
+export function globalStateFile(): string {
+  const configRoot = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
+  return join(configRoot, "opencode", "temperature.json")
+}
+
+function readModelValue(file: string, modelKey: string): number | undefined {
   try {
-    if (!existsSync(stateFile(directory))) return undefined
-    const parsed = JSON.parse(readFileSync(stateFile(directory), "utf8")) as {
+    if (!existsSync(file)) return undefined
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as {
       version?: number
       models?: Record<string, { temperature?: number }>
     }
     const value = Number(parsed?.models?.[modelKey]?.temperature)
-    if (!Number.isFinite(value)) return undefined
-    return Math.min(2, Math.max(0, value))
+    return clampTemperature(value)
   } catch {
     return undefined
   }
+}
+
+export function readTemperature(directory: string, modelKey: string): number | undefined {
+  return readModelValue(projectStateFile(directory), modelKey) ?? readModelValue(globalStateFile(), modelKey)
 }
 
 const server: Plugin = async ({ directory }) => {

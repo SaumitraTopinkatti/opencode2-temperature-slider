@@ -26,33 +26,22 @@ session: every session that uses the same model shares its temperature, and
 different models keep independent values. Model variants of the same model ID
 share the temperature.
 
-The TUI writes the temperature for the active model to a shared state file in
-the current project:
+Temperature resolution is:
 
-```
+1. Project override, when present.
+2. Global default, when present.
+3. OpenCode/model default.
+
+Project overrides are stored in:
+
 <project>/.opencode/temperature.json
-```
 
-```json
-{
-  "version": 1,
-  "models": {
-    "anthropic/claude-sonnet-4-5": {
-      "temperature": 0.7
-    },
-    "databricks/system.ai.claude-opus-5": {
-      "temperature": 1.1
-    }
-  }
-}
-```
+Global defaults are stored in:
 
-The server plugin hooks `chat.params` and reads the matching model entry on
-every request, so the temperature applies immediately — no server restart, no
-config reload.
+~/.config/opencode/temperature.json
 
-The temperature range is `0.0` to `2.0`. When no entry exists for a model, the
-model default is used.
+On systems with XDG_CONFIG_HOME, the global file is placed under that
+directory instead.
 
 ## How it works
 
@@ -94,11 +83,14 @@ Restart OpenCode. The slider appears next to the prompt.
 
 ## Usage
 
-- Drag the slider left or right and hold to change the temperature in `0.1`
+- Drag the slider left or right and hold to change the temperature in 0.1
   steps every 500 ms.
-- Values are saved per model in `.opencode/temperature.json`.
-- Run `/temp-reset` to clear the override for the current model and return to
-  the model default. With no model selected, it shows `No model selected`.
+- Slider changes create or update the project override.
+- Run /temp-reset to clear the project override for the current model and
+  fall back to the global default, or the model default when no global value
+  exists.
+- Run /temp-global to promote the current model temperature to the global
+  default and remove the current project's override.
 
 ## Requirements
 

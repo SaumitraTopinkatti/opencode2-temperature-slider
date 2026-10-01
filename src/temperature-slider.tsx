@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { createEffect, createSignal, onCleanup } from "solid-js"
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { extend } from "@opentui/solid"
 import type { RenderableConstructor } from "@opentui/solid"
@@ -35,8 +36,13 @@ type TemperatureState = {
 
 let activeModelKey: string | undefined
 
-function stateFile(directory: string): string {
+function projectStateFile(directory: string): string {
   return join(directory, ".opencode", "temperature.json")
+}
+
+function globalStateFile(): string {
+  const configRoot = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
+  return join(configRoot, "opencode", "temperature.json")
 }
 
 function kvKey(modelKey: string): string {
@@ -51,10 +57,10 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100
 }
 
-function readState(directory: string): TemperatureState | undefined {
+function readState(file: string): TemperatureState | undefined {
   try {
-    if (!existsSync(stateFile(directory))) return undefined
-    const parsed = JSON.parse(readFileSync(stateFile(directory), "utf8")) as TemperatureState
+    if (!existsSync(file)) return undefined
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as TemperatureState
     if (!parsed || typeof parsed !== "object" || !parsed.models) return undefined
     return parsed
   } catch {
@@ -62,20 +68,28 @@ function readState(directory: string): TemperatureState | undefined {
   }
 }
 
-function readModelValue(directory: string, modelKey: string): number | undefined {
-  const state = readState(directory)
+function readModelValue(file: string, modelKey: string): number | undefined {
+  const state = readState(file)
   const value = state?.models?.[modelKey]?.temperature
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined
   return clamp(value)
+}
+
+function readProjectModelValue(directory: string, modelKey: string): number | undefined {
+  return readModelValue(projectStateFile(directory), modelKey)
+}
+
+function readGlobalModelValue(modelKey: string): number | undefined {
+  return readModelValue(globalStateFile(), modelKey)
 }
 
 function writeState(api: TuiPluginApi, modelKey: string, value: number): void {
   try {
     const directory = api.state.path.directory
     if (directory) {
-      const file = stateFile(directory)
+      const file = projectStateFile(directory)
       mkdirSync(dirname(file), { recursive: true })
-      const state = readState(directory) ?? { version: 1, models: {} }
+      const state = readState(file) ?? { version: 1, models: {} }
       state.models[modelKey] = { temperature: value }
       writeFileSync(file, JSON.stringify(state, null, 2))
     }
@@ -89,8 +103,8 @@ function clearState(api: TuiPluginApi, modelKey: string): void {
   try {
     const directory = api.state.path.directory
     if (directory) {
-      const file = stateFile(directory)
-      const state = readState(directory)
+      const file = projectStateFile(directory)
+      const state = readState(file)
       if (state) {
         delete state.models[modelKey]
         if (Object.keys(state.models).length === 0) {
@@ -109,8 +123,14 @@ function clearState(api: TuiPluginApi, modelKey: string): void {
 function loadModelValue(api: TuiPluginApi, modelKey: string): number {
   const stored = api.kv.get<number>(kvKey(modelKey))
   if (typeof stored === "number" && Number.isFinite(stored)) return clamp(stored)
-  const file = readModelValue(api.state.path.directory, modelKey)
-  if (file !== undefined) return file
+
+  const directory = api.state.path.directory
+  const projectValue = directory ? readProjectModelValue(directory, modelKey) : undefined
+  if (projectValue !== undefined) return projectValue
+
+  const globalValue = readGlobalModelValue(modelKey)
+  if (globalValue !== undefined) return globalValue
+
   return DEFAULT_TEMPERATURE
 }
 
@@ -188,7 +208,10 @@ function SpringTempControl(props: { api: TuiPluginApi }) {
     setTemp(loadModelValue(api, key))
     setVisual(CENTER)
     const configValue = configTemperature(api)
-    if (configValue !== undefined && api.kv.get<number>(kvKey(key)) === undefined && readModelValue(api.state.path.directory, key) === undefined) {
+    const directory = api.state.path.directory
+    const hasProjectValue = directory ? readProjectModelValue(directory, key) !== undefined : false
+    const hasGlobalValue = readGlobalModelValue(key) !== undefined
+    if (configValue !== undefined && api.kv.get<number>(kvKey(key)) === undefined && !hasProjectValue && !hasGlobalValue) {
       setTemp(configValue)
     }
   })
@@ -318,7 +341,38 @@ const plugin: TuiPluginModule & { id: string } = {
               return
             }
             clearState(api, modelKey)
-            api.ui.toast({ variant: "info", message: `Temperature override cleared for ${modelKey}` })
+            setTemp(loadModelValue(api, modelKey))
+            api.ui.toast({ variant: "info", message: "Project override cleared for " + modelKey })
+          },
+        },
+        {
+          title: "Temperature: Make current value global",
+          value: "temperature.global",
+          description: "Save the current model temperature as the global default and remove this project's override.",
+          category: "Temperature",
+          suggested: false,
+          slash: {
+            name: "temp-global",
+          },
+          onSelect() {
+            const modelKey = activeModelKey
+            if (!modelKey) {
+              api.ui.toast({ variant: "info", message: "No model selected" })
+              return
+            }
+            const value = loadModelValue(api, modelKey)
+            const file = globalStateFile()
+            try {
+              mkdirSync(dirname(file), { recursive: true })
+              const state = readState(file) ?? { version: 1, models: {} }
+              state.models[modelKey] = { temperature: value }
+              writeFileSync(file, JSON.stringify(state, null, 2))
+              clearState(api, modelKey)
+              setTemp(value)
+              api.ui.toast({ variant: "info", message: "Global default set to " + value.toFixed(1) + " for " + modelKey })
+            } catch {
+              api.ui.toast({ variant: "error", message: "Could not write global temperature state" })
+            }
           },
         },
       ]
