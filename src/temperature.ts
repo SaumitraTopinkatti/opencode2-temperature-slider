@@ -24,7 +24,7 @@ export function readTemperature(directory: string, modelKey: string): number | u
 const server: Plugin = async ({ directory }) => {
   return {
     "chat.params": async (input, output) => {
-      if (!input.model.capabilities.temperature) return
+      if (input.model.capabilities.temperature === false) return
       const modelKey = `${input.model.providerID}/${input.model.id}`
       const value = readTemperature(directory, modelKey)
       if (value !== undefined) output.temperature = value
