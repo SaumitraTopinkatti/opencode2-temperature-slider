@@ -24,10 +24,10 @@ const plugin: TuiPluginModule & { id: string } = {
         {
           name: "temperature.set",
           title: "Set session temperature",
-          description: "Set the LLM temperature for the current session.",
+          desc: "Set the LLM temperature for the current session.",
           category: "Temperature",
-          slash: { name: "temp", aliases: ["temperature"], arguments: true },
-          suggested: true,
+          namespace: "palette",
+          slashName: "temp",
           run(ctx) {
             const sessionID = currentSessionID(api)
             if (!sessionID) {
