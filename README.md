@@ -1,102 +1,104 @@
 # opencode2-temperature-slider
 
-A spring-loaded temperature slider for the OpenCode TUI. Drag it to change the
-LLM temperature per model — no restart needed.
+OpenCode temperature control without a persistent TUI widget.
 
-![slider](https://img.shields.io/badge/opencode-1.18%2B-blue)
+Use a slash command inside a session:
 
-## What it does
+```text
+/temp 1.0
+/temp 0.7
+/temp reset
+```
 
-A small slider appears next to the prompt input (session and home screens):
+`/temp <value>` sets the temperature for the current session.
+`/temp reset` removes the session override.
+`/temp` with no value reports the current session override, if any.
 
-- **Hold left of center** — temperature decreases by `0.1` every 500 ms.
-- **Hold right of center** — temperature increases by `0.1` every 500 ms.
-- **Drag** — the thumb follows the mouse and the direction flips when you cross
-  the center.
-- **Release** — the thumb springs back to the center like a real spring.
+## Precedence
 
-The current value is shown next to the slider (one decimal). When no model can
-be resolved — e.g. on the home screen before a session has a model — the slider
-is disabled and shows `--`.
+Temperature is resolved in this order:
 
-## Per-model values
+1. Session override
+2. Project override
+3. Global default
+4. OpenCode/model default
 
-Each model has its own temperature. The value follows the model, not the
-session: every session that uses the same model shares its temperature, and
-different models keep independent values. Model variants of the same model ID
-share the temperature.
+Session overrides apply to every model request made by that session, including
+after switching models.
 
-Temperature resolution is:
+## State files
 
-1. Project override, when present.
-2. Global default, when present.
-3. OpenCode/model default.
+Project overrides:
 
-Project overrides are stored in:
-
+```text
 <project>/.opencode/temperature.json
+```
 
-Global defaults are stored in:
+Global defaults:
 
+```text
 ~/.config/opencode/temperature.json
+```
 
-On systems with XDG_CONFIG_HOME, the global file is placed under that
-directory instead.
+Session overrides:
+
+```text
+~/.config/opencode/temperature-sessions.json
+```
+
+`XDG_CONFIG_HOME` is honored on systems that set it.
 
 ## How it works
 
-The plugin has two parts:
+The plugin still has two OpenCode integration points:
+| File | Role |
+| --- | --- |
+| `src/temperature.ts` | Server `chat.params` hook |
+| `src/temperature-command.ts` | TUI slash command |
+| `src/state.ts` | Shared state-file helpers |
 
-| File                          | Type           | Loaded via      |
-| ----------------------------- | -------------- | --------------- |
-| `src/temperature.ts`          | server plugin  | `opencode.json` |
-| `src/temperature-slider.tsx`  | TUI plugin     | `tui.json`      |
+The server hook receives the current `sessionID`, so the session override is
+applied directly to the model request instead of becoming part of the prompt.
 
 ## Install
 
-Copy the two plugin files into your OpenCode config:
-
-```powershell
-# Windows
-Copy-Item src\temperature.ts      "$env:USERPROFILE\.config\opencode\plugins\temperature.ts"
-Copy-Item src\temperature-slider.tsx "$env:USERPROFILE\.config\opencode\plugins\temperature-slider.tsx"
-```
-
-```bash
-# macOS / Linux
-cp src/temperature.ts ~/.config/opencode/plugins/temperature.ts
-cp src/temperature-slider.tsx ~/.config/opencode/plugins/temperature-slider.tsx
-```
-
-The server plugin is auto-discovered. The TUI plugin must be listed in
-`~/.config/opencode/tui.json`:
+Add the plugin to both `opencode.json` and `tui.json` using the same GitHub
+spec:
 
 ```json
-{
-  "plugins": [
-    "./plugins/temperature-slider.tsx"
-  ]
-}
+"github:SaumitraTopinkatti/opencode2-temperature-slider#<commit>"
 ```
 
-Restart OpenCode. The slider appears next to the prompt.
+Restart OpenCode after changing the pinned commit.
 
 ## Usage
 
-- Drag the slider left or right and hold to change the temperature in 0.1
-  steps every 500 ms.
-- Slider changes create or update the project override.
-- Run /temp-reset to clear the project override for the current model and
-  fall back to the global default, or the model default when no global value
-  exists.
-- Run /temp-global to promote the current model temperature to the global
-  default and remove the current project's override.
+```text
+/temp 1.2
+→ session temperature = 1.2
 
-## Requirements
+/temp
+→ show current session override
 
-- OpenCode 1.18+
-- A terminal with mouse support (the TUI must be started with mouse enabled)
+/temp reset
+→ remove session override and fall back to project/global/model defaults
+```
 
-## License
+Values are clamped to `0..2`.
 
-MIT
+## Global defaults
+
+The existing global file remains model-specific. Example:
+
+```json
+{
+  "version": 1,
+  "models": {
+    "openrouter/deepseek/deepseek-v4.1-flash": {
+      "temperature": 1.0
+    }
+  }
+}
+```
+
+`/temp` does not modify global or project defaults.

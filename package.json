@@ -1,7 +1,7 @@
 {
   "name": "@aundal/opencode2-temperature-slider",
-  "version": "0.2.0",
-  "description": "OpenCode plugin with a spring-loaded temperature slider in the TUI that changes the LLM temperature per model per request without restarting.",
+  "version": "0.3.0",
+  "description": "OpenCode temperature control: set per-session temperature with a slash command.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -14,7 +14,7 @@
   },
   "exports": {
     "./server": "./src/temperature.ts",
-    "./tui": "./src/temperature-slider.tsx"
+    "./tui": "./src/temperature-command.ts"
   },
   "files": [
     "src",
@@ -25,15 +25,12 @@
     "opencode",
     "opencode-plugin",
     "temperature",
-    "slider",
+    "slash-command",
     "tui"
   ],
-  "dependencies": {
-    "@opentui/solid": "0.4.0",
-    "solid-js": "1.9.12"
-  },
+  "dependencies": {},
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.4.0"
+    "@opencode-ai/plugin": ">=1.18.0"
   },
   "engines": {
     "opencode": ">=1.18.0"

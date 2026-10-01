@@ -1,20 +1,10 @@
 import { existsSync, readFileSync } from "node:fs"
-import { homedir } from "node:os"
 import { join } from "node:path"
 import type { Plugin, PluginModule } from "@opencode-ai/plugin"
+import { clampTemperature, globalStateFile, readSessionTemperature, sessionStateFile } from "./state.js"
 
-function clampTemperature(value: number): number | undefined {
-  if (!Number.isFinite(value)) return undefined
-  return Math.min(2, Math.max(0, value))
-}
-
-export function projectStateFile(directory: string): string {
+function projectStateFile(directory: string): string {
   return join(directory, ".opencode", "temperature.json")
-}
-
-export function globalStateFile(): string {
-  const configRoot = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
-  return join(configRoot, "opencode", "temperature.json")
 }
 
 function readModelValue(file: string, modelKey: string): number | undefined {
@@ -30,23 +20,26 @@ function readModelValue(file: string, modelKey: string): number | undefined {
     return undefined
   }
 }
-
-export function readTemperature(directory: string, modelKey: string): number | undefined {
+export function readTemperature(directory: string, modelKey: string, sessionID?: string): number | undefined {
+  if (sessionID) {
+    const sessionValue = readSessionTemperature(sessionID)
+    if (sessionValue !== undefined) return sessionValue
+  }
   return readModelValue(projectStateFile(directory), modelKey) ?? readModelValue(globalStateFile(), modelKey)
 }
 
-const server: Plugin = async ({ directory }) => {
-  return {
-    "chat.params": async (input, output) => {
-      if (input.model.capabilities.temperature === false) return
-      const modelKey = `${input.model.providerID}/${input.model.id}`
-      const value = readTemperature(directory, modelKey)
-      if (value !== undefined) output.temperature = value
-    },
-  }
-}
+export { globalStateFile, sessionStateFile } from "./state.js"
+
+const server: Plugin = async ({ directory }) => ({
+  "chat.params": async (input, output) => {
+    if (input.model.capabilities.temperature === false) return
+    const modelKey = `${input.model.providerID}/${input.model.id}`
+    const value = readTemperature(directory, modelKey, input.sessionID)
+    if (value !== undefined) output.temperature = value
+  },
+})
 
 export default {
-  id: "temperature.slider",
+  id: "temperature.control",
   server,
 } satisfies PluginModule & { id: string }
