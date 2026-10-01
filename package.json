@@ -6,11 +6,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aundal/opencode2-temperature-slider.git"
+    "url": "git+https://github.com/SaumitraTopinkatti/opencode2-temperature-slider.git"
   },
-  "homepage": "https://github.com/aundal/opencode2-temperature-slider#readme",
+  "homepage": "https://github.com/SaumitraTopinkatti/opencode2-temperature-slider#readme",
   "bugs": {
-    "url": "https://github.com/aundal/opencode2-temperature-slider/issues"
+    "url": "https://github.com/SaumitraTopinkatti/opencode2-temperature-slider/issues"
   },
   "exports": {
     "./server": "./src/temperature.ts",

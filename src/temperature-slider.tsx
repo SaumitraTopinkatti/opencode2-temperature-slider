@@ -138,7 +138,11 @@ function resolveModelKey(api: TuiPluginApi): string | undefined {
 }
 
 function modelSupportsTemperature(api: TuiPluginApi, modelKey: string): boolean {
-  const [providerID, modelID] = modelKey.split("/")
+  const separator = modelKey.indexOf("/")
+  if (separator === -1) return true
+
+  const providerID = modelKey.slice(0, separator)
+  const modelID = modelKey.slice(separator + 1)
   const provider = api.state.provider.find((p) => p.id === providerID)
   const model = provider?.models?.[modelID]
   return model ? model.capabilities.temperature !== false : true
