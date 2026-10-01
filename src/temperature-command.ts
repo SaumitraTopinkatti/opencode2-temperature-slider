@@ -1,60 +1,65 @@
 import type { TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { clampTemperature, clearSessionTemperature, readSessionTemperature, writeSessionTemperature } from "./state.js"
 
-const HELP = "Usage: /temp <0-2> or /temp reset"
+const HELP = "Enter a value from 0 to 2, or reset."
 
 function currentSessionID(api: TuiPluginApi): string | undefined {
   const route = api.route.current
   return route.name === "session" ? route.params.sessionID : undefined
 }
 
-function commandArgument(input: unknown): string {
-  if (typeof input !== "string") return ""
-  const raw = input.trim()
-  return raw.replace(/^\/?(?:temp|temperature)(?:\s+|$)/i, "").trim()
+function applyTemperature(api: TuiPluginApi, sessionID: string, raw: string): void {
+  const value = raw.trim()
+
+  if (!value) {
+    api.ui.toast({ variant: "error", message: HELP })
+    return
+  }
+
+  if (value.toLowerCase() === "reset") {
+    clearSessionTemperature(sessionID)
+    api.ui.toast({ variant: "success", message: "Session temperature reset." })
+    return
+  }
+
+  const temperature = clampTemperature(Number(value))
+  if (temperature === undefined) {
+    api.ui.toast({ variant: "error", message: HELP })
+    return
+  }
+
+  writeSessionTemperature(sessionID, temperature)
+  api.ui.toast({
+    variant: "success",
+    message: `Session temperature set to ${temperature.toFixed(1)}.`,
+  })
 }
 
 const plugin: TuiPluginModule & { id: string } = {
   id: "temperature.command",
   async tui(api) {
-    const run = (ctx: any) => {
+    const run = () => {
       const sessionID = currentSessionID(api)
       if (!sessionID) {
         api.ui.toast({ variant: "warning", message: "Open a session first." })
         return
       }
 
-      const argument = commandArgument(ctx.input)
-      if (!argument) {
-        const value = readSessionTemperature(sessionID)
-        api.ui.toast({
-          variant: "info",
-          message:
-            value === undefined
-              ? "No session temperature override. " + HELP
-              : `Session temperature: ${value.toFixed(1)}`,
-        })
-        return
-      }
+      const current = readSessionTemperature(sessionID)
 
-      if (argument.toLowerCase() === "reset") {
-        clearSessionTemperature(sessionID)
-        api.ui.toast({ variant: "success", message: "Session temperature reset." })
-        return
-      }
-
-      const value = Number(argument)
-      const temperature = clampTemperature(value)
-      if (temperature === undefined) {
-        api.ui.toast({ variant: "error", message: HELP })
-        return
-      }
-
-      writeSessionTemperature(sessionID, temperature)
-      api.ui.toast({
-        variant: "success",
-        message: `Session temperature set to ${temperature.toFixed(1)}.`,
-      })
+      api.ui.dialog.replace(() =>
+        api.ui.DialogPrompt({
+          title: "Set session temperature",
+          description: () => "Enter 0-2, or reset.",
+          placeholder: "1.0",
+          value: current === undefined ? "" : current.toFixed(1),
+          onConfirm: (value) => {
+            api.ui.dialog.clear()
+            applyTemperature(api, sessionID, value)
+          },
+          onCancel: () => api.ui.dialog.clear(),
+        }),
+      )
     }
 
     const command = {
@@ -70,10 +75,9 @@ const plugin: TuiPluginModule & { id: string } = {
 
     const keymap = (api as any).keymap
     if (keymap?.registerLayer) {
-      const unregister = keymap.registerLayer({
+      keymap.registerLayer({
         commands: [command],
       })
-      api.lifecycle.onDispose(unregister)
       return
     }
 

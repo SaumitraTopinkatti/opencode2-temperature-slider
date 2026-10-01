@@ -2,17 +2,23 @@
 
 OpenCode temperature control without a persistent TUI widget.
 
-Use a slash command inside a session:
+Use the slash command:
 
 ```text
-/temp 1.0
-/temp 0.7
-/temp reset
+/temp
 ```
 
-`/temp <value>` sets the temperature for the current session.
-`/temp reset` removes the session override.
-`/temp` with no value reports the current session override, if any.
+OpenCode opens a small input dialog. Enter a temperature from `0` to `2`, then press Enter.
+
+You can also enter:
+
+```text
+reset
+```
+
+to remove the current session override.
+
+The `/temperature` alias is also registered.
 
 ## Precedence
 
@@ -23,8 +29,7 @@ Temperature is resolved in this order:
 3. Global default
 4. OpenCode/model default
 
-Session overrides apply to every model request made by that session, including
-after switching models.
+Session overrides apply to every model request made by that session, including after switching models.
 
 ## State files
 
@@ -46,24 +51,23 @@ Session overrides:
 ~/.config/opencode/temperature-sessions.json
 ```
 
-`XDG_CONFIG_HOME` is honored on systems that set it.
+`XDG_CONFIG_HOME` is honored when set.
 
 ## How it works
 
-The plugin still has two OpenCode integration points:
 | File | Role |
 | --- | --- |
 | `src/temperature.ts` | Server `chat.params` hook |
-| `src/temperature-command.ts` | TUI slash command |
-| `src/state.ts` | Shared state-file helpers |
+| `src/temperature-command.ts` | TUI `/temp` command + dialog |
+| `src/state.ts` | Shared state helpers |
 
-The server hook receives the current `sessionID`, so the session override is
-applied directly to the model request instead of becoming part of the prompt.
+The server hook receives the current `sessionID`, so session temperature is applied directly to the model request.
+
+OpenCode's slash-command UI currently dispatches registered slash commands by command name. It does not expose arbitrary `/command args` to the TUI plugin handler. The plugin therefore uses `/temp` followed by a native prompt dialog for the value.
 
 ## Install
 
-Add the plugin to both `opencode.json` and `tui.json` using the same GitHub
-spec:
+Add the plugin to both `opencode.json` and `tui.json`:
 
 ```json
 "github:SaumitraTopinkatti/opencode2-temperature-slider#<commit>"
@@ -71,24 +75,9 @@ spec:
 
 Restart OpenCode after changing the pinned commit.
 
-## Usage
-
-```text
-/temp 1.2
-→ session temperature = 1.2
-
-/temp
-→ show current session override
-
-/temp reset
-→ remove session override and fall back to project/global/model defaults
-```
-
-Values are clamped to `0..2`.
-
 ## Global defaults
 
-The existing global file remains model-specific. Example:
+The global file remains model-specific. Example:
 
 ```json
 {
@@ -101,4 +90,4 @@ The existing global file remains model-specific. Example:
 }
 ```
 
-`/temp` does not modify global or project defaults.
+`/temp` only changes the current session.
