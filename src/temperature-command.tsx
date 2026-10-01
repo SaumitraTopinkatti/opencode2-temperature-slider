@@ -50,7 +50,7 @@ const plugin: TuiPluginModule & { id: string } = {
       api.ui.dialog.replace(() =>
         api.ui.DialogPrompt({
           title: "Set session temperature",
-          description: () => "Enter 0-2, or reset.",
+          description: () => <text>Enter 0-2, or reset.</text>,
           placeholder: "1.0",
           value: current === undefined ? "" : current.toFixed(1),
           onConfirm: (value) => {
